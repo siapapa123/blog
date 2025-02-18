@@ -1,0 +1,3 @@
+2025-02-19 00:48:11.850 [http-nio-8080-exec-1] DEBUG c.b.r.U.existsByUsername - ==>  Preparing: select count(1) from users where username = ?
+2025-02-19 00:48:11.873 [http-nio-8080-exec-1] DEBUG c.b.r.U.existsByUsername - ==> Parameters: johndoe(String)
+2025-02-19 00:48:11.893 [http-nio-8080-exec-1] DEBUG c.b.r.U.existsByUsername - <==      Total: 1
