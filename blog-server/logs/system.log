@@ -42,3 +42,5 @@
 2025-02-19 00:48:11.900 [http-nio-8080-exec-1] ERROR com.blog.aspect.WebLogAspect - Request Error  : 用户名已存在
 2025-02-19 00:48:11.900 [http-nio-8080-exec-1] INFO  com.blog.aspect.WebLogAspect - Time Cost      : 304 ms
 2025-02-19 00:48:11.900 [http-nio-8080-exec-1] INFO  com.blog.aspect.WebLogAspect - =========================================== End ===========================================
+2025-02-19 00:53:56.585 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2025-02-19 00:53:56.594 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.
