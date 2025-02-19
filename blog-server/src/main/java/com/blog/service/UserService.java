@@ -15,7 +15,5 @@ public interface UserService {
     UserResponse update(Long id, UserUpdateRequest request);
     void deleteById(Long id);
     PageInfo<UserResponse> getList(int pageNum, int pageSize, String keyword);
-    void updateStatus(Long id, String status);
-    void updateRoles(Long id, String[] roles);
     boolean isCurrentUser(Long userId);
 } 

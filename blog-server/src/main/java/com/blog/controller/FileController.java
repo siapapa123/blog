@@ -37,7 +37,7 @@ public class FileController {
     @PostMapping("/user/avatars")
     public ApiResponse<String> uploadUserAvatar(
             @Parameter(description = "头像图片") @RequestParam("file") MultipartFile file) {
-        return ApiResponse.success(fileService.uploadImage(file, StorageConstants.USER_AVATAR_DIR));
+        return ApiResponse.success(fileService.uploadImage(file, StorageConstants.AVATAR_DIR));
     }
 
     @Operation(summary = "删除文件")

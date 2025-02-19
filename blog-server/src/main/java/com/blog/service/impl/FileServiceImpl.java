@@ -18,6 +18,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import com.blog.constant.StorageConstants;
 
 @Slf4j
 @Service
@@ -45,38 +48,139 @@ public class FileServiceImpl implements FileService {
         }
     }
 
+    /**
+     * 生成基于日期的存储路径
+     * @param baseDir 基础目录
+     * @return 完整的存储路径
+     */
+    private String generateDatePath(String baseDir) {
+        String datePath = LocalDateTime.now().format(DateTimeFormatter.ofPattern(StorageConstants.DATE_PATH_FORMAT));
+        return baseDir + "/" + datePath;
+    }
+
+    /**
+     * 获取带有重试机制的预签名URL
+     */
+    private String getPresignedUrlWithRetry(String objectName, int maxRetries) {
+        int retryCount = 0;
+        while (retryCount < maxRetries) {
+            try {
+                return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                        .bucket(minioConfig.getBucketName())
+                        .object(objectName)
+                        .method(Method.GET)
+                        .expiry(minioConfig.getUrlExpiry(), TimeUnit.HOURS)
+                        .build());
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount == maxRetries) {
+                    log.error("Failed to generate presigned URL after {} retries", maxRetries, e);
+                    throw new RuntimeException("获取文件访问URL失败", e);
+                }
+                log.warn("Retry {} to generate presigned URL", retryCount);
+                try {
+                    Thread.sleep(1000L * retryCount);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 上传文件到MinIO（带重试机制）
+     */
+    private void putObjectWithRetry(PutObjectArgs args, int maxRetries) {
+        int retryCount = 0;
+        while (retryCount < maxRetries) {
+            try {
+                minioClient.putObject(args);
+                return;
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount == maxRetries) {
+                    log.error("Failed to upload file after {} retries", maxRetries, e);
+                    throw new RuntimeException("文件上传失败", e);
+                }
+                log.warn("Retry {} to upload file", retryCount);
+                try {
+                    Thread.sleep(1000L * retryCount);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+    }
+
     @Override
     public String uploadImage(MultipartFile file, String directory) {
         if (file == null || file.isEmpty()) {
             Asserts.fail("上传图片不能为空");
         }
 
+        // 检查文件类型
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            Asserts.fail("只支持上传图片文件");
+        if (contentType == null || !isValidImageType(contentType)) {
+            Asserts.fail("不支持的图片格式");
+        }
+
+        // 检查文件大小
+        if (file.getSize() > getMaxImageSize(directory)) {
+            Asserts.fail("图片大小超出限制");
         }
 
         return uploadFile(file, directory);
     }
 
+    /**
+     * 检查是否为有效的图片类型
+     */
+    private boolean isValidImageType(String contentType) {
+        return contentType.startsWith("image/") && (
+                contentType.equals("image/jpeg") ||
+                contentType.equals("image/png") ||
+                contentType.equals("image/gif") ||
+                contentType.equals("image/webp")
+        );
+    }
+
+    /**
+     * 获取不同目录的图片大小限制
+     */
+    private long getMaxImageSize(String directory) {
+        // 1MB = 1024 * 1024
+        if (directory.startsWith(StorageConstants.AVATAR_DIR)) {
+            return 2 * 1024 * 1024L; // 头像最大2MB
+        } else if (directory.startsWith(StorageConstants.ARTICLE_IMAGES_DIR)) {
+            return 5 * 1024 * 1024L; // 文章图片最大5MB
+        } else {
+            return 10 * 1024 * 1024L; // 其他图片最大10MB
+        }
+    }
+
     @Override
-    public String uploadFile(MultipartFile file, String directory) {
+    public String uploadFile(MultipartFile file, String baseDir) {
         if (file == null || file.isEmpty()) {
             Asserts.fail("上传文件不能为空");
         }
         
         try {
+            String fullPath = generateDatePath(baseDir);
             String filename = generateFilename(file.getOriginalFilename());
-            String objectName = directory + "/" + filename;
+            String objectName = fullPath + "/" + filename;
             
-            minioClient.putObject(PutObjectArgs.builder()
+            putObjectWithRetry(PutObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
                     .object(objectName)
                     .stream(file.getInputStream(), file.getSize(), -1)
                     .contentType(file.getContentType())
-                    .build());
+                    .build(),
+                    3);
 
-            return getFileUrl(objectName);
+            return getPresignedUrlWithRetry(objectName, 3);
         } catch (Exception e) {
             log.error("Error uploading file: {}", e.getMessage(), e);
             Asserts.fail("文件上传失败");
@@ -91,19 +195,21 @@ public class FileServiceImpl implements FileService {
         }
         
         try {
-            String objectName = directory + "/" + filename;
+            String fullPath = generateDatePath(directory);
+            String objectName = fullPath + "/" + filename;
             byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
             
             ByteArrayInputStream bais = new ByteArrayInputStream(contentBytes);
-            minioClient.putObject(PutObjectArgs.builder()
+            putObjectWithRetry(PutObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
                     .object(objectName)
                     .stream(bais, contentBytes.length, -1)
                     .contentType("text/markdown")
-                    .build());
+                    .build(),
+                    minioConfig.getMaxRetries());
 
             log.info("Content uploaded successfully: {}", objectName);
-            return getFileUrl(objectName);
+            return getPresignedUrlWithRetry(objectName, minioConfig.getMaxRetries());
         } catch (Exception e) {
             log.error("Error uploading content: {}", e.getMessage(), e);
             Asserts.fail("内容上传失败");
@@ -114,14 +220,16 @@ public class FileServiceImpl implements FileService {
     @Override
     public String getContent(String objectName) {
         try {
-            try (InputStream inputStream = minioClient.getObject(GetObjectArgs.builder()
+            GetObjectResponse response = getObjectWithRetry(GetObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
                     .object(objectName)
-                    .build())) {
-                ByteArrayOutputStream result = new ByteArrayOutputStream();
+                    .build(),
+                    minioConfig.getMaxRetries());
+
+            try (ByteArrayOutputStream result = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[1024];
                 int length;
-                while ((length = inputStream.read(buffer)) != -1) {
+                while ((length = response.read(buffer)) != -1) {
                     result.write(buffer, 0, length);
                 }
                 return result.toString(StandardCharsets.UTF_8.name());
@@ -136,10 +244,11 @@ public class FileServiceImpl implements FileService {
     @Override
     public void deleteFile(String objectName) {
         try {
-            minioClient.removeObject(RemoveObjectArgs.builder()
+            removeObjectWithRetry(RemoveObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
                     .object(objectName)
-                    .build());
+                    .build(),
+                    minioConfig.getMaxRetries());
         } catch (Exception e) {
             log.error("Error deleting file", e);
             Asserts.fail("文件删除失败");
@@ -151,18 +260,55 @@ public class FileServiceImpl implements FileService {
         return UUID.randomUUID().toString() + (extension != null ? "." + extension : "");
     }
 
-    private String getFileUrl(String objectName) {
-        try {
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
-                    .bucket(minioConfig.getBucketName())
-                    .object(objectName)
-                    .method(Method.GET)
-                    .expiry(7, TimeUnit.DAYS)
-                    .build());
-        } catch (Exception e) {
-            log.error("Error generating URL", e);
-            Asserts.fail("URL生成失败");
-            return null;
+    /**
+     * 获取对象（带重试机制）
+     */
+    private GetObjectResponse getObjectWithRetry(GetObjectArgs args, int maxRetries) {
+        int retryCount = 0;
+        while (retryCount < maxRetries) {
+            try {
+                return minioClient.getObject(args);
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount == maxRetries) {
+                    log.error("Failed to get object after {} retries", maxRetries, e);
+                    throw new RuntimeException("获取文件失败", e);
+                }
+                log.warn("Retry {} to get object", retryCount);
+                try {
+                    Thread.sleep(1000L * retryCount);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        throw new RuntimeException("获取文件失败");
+    }
+
+    /**
+     * 删除对象（带重试机制）
+     */
+    private void removeObjectWithRetry(RemoveObjectArgs args, int maxRetries) {
+        int retryCount = 0;
+        while (retryCount < maxRetries) {
+            try {
+                minioClient.removeObject(args);
+                return;
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount == maxRetries) {
+                    log.error("Failed to remove object after {} retries", maxRetries, e);
+                    throw new RuntimeException("删除文件失败", e);
+                }
+                log.warn("Retry {} to remove object", retryCount);
+                try {
+                    Thread.sleep(1000L * retryCount);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
     }
 } 

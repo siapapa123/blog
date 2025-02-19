@@ -2,7 +2,6 @@ package com.blog.service.impl;
 
 import com.blog.common.response.ResultCode;
 import com.blog.common.util.SecurityUtils;
-import com.blog.constant.StorageConstants;
 import com.blog.dto.request.LoginRequest;
 import com.blog.dto.request.RegisterRequest;
 import com.blog.dto.request.UserUpdateRequest;
@@ -107,26 +106,43 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse update(Long id, UserUpdateRequest request) {
+        // 1. 检查用户是否存在
         User user = userRepository.selectById(id);
         if (user == null || user.getIsDeleted()) {
             Asserts.fail(ResultCode.USER_NOT_FOUND);
         }
 
+        // 2. 检查用户名是否重复
+        if (request.getUsername() != null && !request.getUsername().equals(user.getUsername())) {
+            if (userRepository.selectByUsername(request.getUsername()) != null) {
+                Asserts.fail(ResultCode.USERNAME_ALREADY_EXISTS);
+            }
+            user.setUsername(request.getUsername());
+        }
+
+        // 3. 检查邮箱是否重复
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            User existingUser = userRepository.selectByEmail(request.getEmail());
-            if (existingUser != null && !existingUser.getId().equals(id)) {
+            if (userRepository.selectByEmail(request.getEmail()) != null) {
                 Asserts.fail(ResultCode.EMAIL_ALREADY_EXISTS);
             }
             user.setEmail(request.getEmail());
         }
 
-        if (request.getAvatar() != null && !request.getAvatar().isEmpty()) {
-            String avatarUrl = fileService.uploadImage(request.getAvatar(), StorageConstants.USER_AVATAR_DIR);
-            user.setAvatarUrl(avatarUrl);
+        // 4. 更新头像URL
+        if (request.getAvatarUrl() != null) {
+            user.setAvatarUrl(request.getAvatarUrl());
         }
 
-        user.setUpdateTime(LocalDateTime.now());
-        userRepository.update(user);
+        // 5. 更新密码
+        if (request.getPassword() != null) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+
+        // 6. 保存更新
+        if (userRepository.update(user) <= 0) {
+            Asserts.fail("用户信息更新失败");
+        }
+
         return convertToVO(user);
     }
 
@@ -147,26 +163,6 @@ public class UserServiceImpl implements UserService {
         return new PageInfo<>(users.stream()
                 .map(this::convertToVO)
                 .collect(Collectors.toList()));
-    }
-
-    @Override
-    @Transactional
-    public void updateStatus(Long id, String status) {
-        User user = userRepository.selectById(id);
-        if (user == null || user.getIsDeleted()) {
-            Asserts.fail(ResultCode.USER_NOT_FOUND);
-        }
-        userRepository.updateStatus(id, status);
-    }
-
-    @Override
-    @Transactional
-    public void updateRoles(Long id, String[] roles) {
-        User user = userRepository.selectById(id);
-        if (user == null || user.getIsDeleted()) {
-            Asserts.fail(ResultCode.USER_NOT_FOUND);
-        }
-        userRepository.updateRoles(id, roles);
     }
 
     @Override

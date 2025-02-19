@@ -15,9 +15,11 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class MinioConfig {
     private String endpoint;
+    private String bucketName;
     private String accessKey;
     private String secretKey;
-    private String bucketName;
+    private int urlExpiry = 24; // URL过期时间（小时）
+    private int maxRetries = 3; // 最大重试次数
 
     @Bean
     public MinioClient minioClient() {

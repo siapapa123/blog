@@ -53,24 +53,4 @@ public class UserController {
             @Parameter(description = "搜索关键词") @RequestParam(required = false) String keyword) {
         return ApiResponse.success(userService.getList(pageNum, pageSize, keyword));
     }
-
-    @Operation(summary = "修改用户状态")
-    @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> updateStatus(
-            @PathVariable Long id,
-            @Parameter(description = "状态") @RequestParam String status) {
-        userService.updateStatus(id, status);
-        return ApiResponse.success();
-    }
-
-    @Operation(summary = "修改用户角色")
-    @PutMapping("/{id}/roles")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> updateRoles(
-            @PathVariable Long id,
-            @Parameter(description = "角色列表") @RequestParam String[] roles) {
-        userService.updateRoles(id, roles);
-        return ApiResponse.success();
-    }
 } 
