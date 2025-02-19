@@ -21,11 +21,15 @@ public class JwtTokenUtil {
     @Value("${jwt.expiration}")
     private Long expiration;
 
-    public String generateToken(Authentication authentication) {
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+    public String generateToken(String username) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", userDetails.getUser().getRole().name());
-        return createToken(claims, userDetails.getUsername());
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(SignatureAlgorithm.HS512, secret)
+                .compact();
     }
 
     public String extractUsername(String token) {

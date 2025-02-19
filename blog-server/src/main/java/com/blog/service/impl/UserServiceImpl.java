@@ -22,12 +22,14 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
@@ -67,19 +69,21 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public TokenResponse login(LoginRequest request) {
-        // 进行身份验证
-        Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
-        );
-        
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        
-        // 生成JWT token
-        String token = jwtTokenUtil.generateToken(authentication);
-        
-        // 获取用户信息
+        // 1. 根据用户名查找用户
         User user = userRepository.selectByUsername(request.getUsername());
-        
+        if (user == null) {
+            Asserts.fail(ResultCode.FAILED);
+        }
+
+        // 2. 验证密码
+        if (!request.getPassword().equals(user.getPassword())) {
+            Asserts.fail(ResultCode.FAILED);
+        }
+
+        // 3. 生成token
+        String token = jwtTokenUtil.generateToken(user.getUsername());
+
+        // 4. 构建并返回响应
         return TokenResponse.builder()
                 .token(token)
                 .user(convertToVO(user))

@@ -83,14 +83,14 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-ui</artifactId>
-            <version>1.6.15</version>
+            <version>1.7.0</version>
         </dependency>
 
         <!-- springdoc-openapi整合security -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-security</artifactId>
-            <version>1.6.15</version>
+            <version>1.7.0</version>
         </dependency>
 
         <!-- 已经包含在spring-boot-starter中 -->
@@ -109,7 +109,7 @@
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.7</version>
+            <version>8.5.2</version>
         </dependency>
     </dependencies>
 

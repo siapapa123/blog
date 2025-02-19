@@ -12,7 +12,6 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      file-size-threshold: 2KB
       max-request-size: 15MB
 
 mybatis:
@@ -39,7 +38,7 @@ pagehelper:
 # 添加springdoc配置
 springdoc:
   api-docs:
-    enabled: true
+    path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
     enabled: true

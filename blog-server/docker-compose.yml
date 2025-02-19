@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3'
 services:
   mysql:
     image: mysql:5.7
@@ -18,14 +18,12 @@ services:
       - blog-network
 
   app:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: blog-app
-    volumes:
-      - ./logs:/app/logs
     ports:
       - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
     environment:
       - MYSQL_HOST=mysql
       - JAVA_OPTS=-Xmx512m -Xms256m
@@ -36,7 +34,7 @@ services:
       - blog-network
 
   minio:
-    image: minio/minio
+    image: minio/minio:latest
     container_name: blog-minio
     ports:
       - "9000:9000"

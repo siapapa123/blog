@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class SwaggerConfig {
-    
+
     @Bean
     public OpenAPI openAPI() {
         return new OpenAPI()
