@@ -1,0 +1,31 @@
+# Maven build directory
+target/
+
+# Log files
+logs/
+*.log
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Compiled class files
+*.class
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# Docker volumes
+mysql-data/
+minio-data/
+
+# Environment files
+.env
+application-*.yml
+!application.yml 
