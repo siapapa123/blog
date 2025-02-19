@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class MinioFileServiceImpl implements FileService {
+public class FileServiceImpl implements FileService {
 
     private final MinioClient minioClient;
     private final MinioConfig minioConfig;

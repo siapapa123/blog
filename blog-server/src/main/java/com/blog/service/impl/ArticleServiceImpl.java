@@ -10,10 +10,12 @@ import com.blog.dto.response.ArticleDetailResponse;
 import com.blog.dto.response.TagResponse;
 import com.blog.exception.Asserts;
 import com.blog.service.ArticleService;
-import com.blog.service.StorageService;
 import com.blog.repository.ArticleRepository;
 import com.blog.repository.UserRepository;
+import com.blog.repository.CategoryRepository;
 import com.blog.model.User;
+import com.blog.model.Category;
+import com.blog.service.FileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,8 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,15 +31,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ArticleServiceImpl implements ArticleService {
     
-    private final StorageService storageService;
     private final ArticleRepository articleRepository;
     private final UserRepository userRepository;
-    
+    private final CategoryRepository categoryRepository;
+    private final FileService fileService;
+
+    // ========== 核心CRUD方法 ==========
     @Override
     @Transactional
     public Article create(ArticleCreateRequest request) {
         // 1. 保存文章内容到MinIO
-        String contentUrl = storageService.uploadContent(
+        String contentUrl = fileService.uploadContent(
             request.getContent(),
             StorageConstants.ARTICLE_CONTENT_DIR,
             UUID.randomUUID().toString() + ".md"
@@ -47,7 +50,7 @@ public class ArticleServiceImpl implements ArticleService {
         // 2. 如果有封面图片，上传到MinIO
         String coverUrl = null;
         if (request.getCover() != null && !request.getCover().isEmpty()) {
-            coverUrl = storageService.uploadFile(
+            coverUrl = fileService.uploadFile(
                 request.getCover(),
                 StorageConstants.ARTICLE_IMAGES_DIR
             );
@@ -82,7 +85,14 @@ public class ArticleServiceImpl implements ArticleService {
         }
         
         // 2. 获取文章内容
-        String content = storageService.getContent(getObjectNameFromUrl(article.getContentUrl()));
+        String content = fileService.getContent(getObjectNameFromUrl(article.getContentUrl()));
+        
+        // 3. 获取分类信息
+        String categoryName = null;
+        if (article.getCategoryId() != null) {
+            Category category = categoryRepository.selectById(article.getCategoryId());
+            categoryName = category != null ? category.getName() : null;
+        }
         
         return ArticleDetailResponse.builder()
                 .id(article.getId())
@@ -93,7 +103,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .authorId(article.getAuthorId())
                 .authorName(getUserName(article.getAuthorId()))
                 .categoryId(article.getCategoryId())
-                .categoryName(getCategoryName(article.getCategoryId()))
+                .categoryName(categoryName)
                 .status(article.getStatus())
                 .viewCount(article.getViewCount())
                 .isTop(article.getIsTop())
@@ -114,7 +124,7 @@ public class ArticleServiceImpl implements ArticleService {
         
         // 2. 如果有新的内容，更新到MinIO
         if (request.getContent() != null) {
-            String contentUrl = storageService.uploadContent(
+            String contentUrl = fileService.uploadContent(
                 request.getContent(),
                 StorageConstants.ARTICLE_CONTENT_DIR,
                 UUID.randomUUID().toString() + ".md"
@@ -124,7 +134,7 @@ public class ArticleServiceImpl implements ArticleService {
         
         // 3. 如果有新的封面图片，更新到MinIO
         if (request.getCover() != null && !request.getCover().isEmpty()) {
-            String coverUrl = storageService.uploadFile(
+            String coverUrl = fileService.uploadFile(
                 request.getCover(),
                 StorageConstants.ARTICLE_IMAGES_DIR
             );
@@ -165,16 +175,114 @@ public class ArticleServiceImpl implements ArticleService {
             Asserts.fail("文章删除失败");
         }
     }
-    
+
+    // ========== 列表查询方法 ==========
     @Override
     public PageInfo<ArticleDetailResponse> getList(int pageNum, int pageSize, Long categoryId, String keyword) {
         PageHelper.startPage(pageNum, pageSize);
         List<Article> articles = articleRepository.selectList(categoryId, keyword);
+        
+        // 批量获取所有需要的分类ID
+        List<Long> categoryIds = articles.stream()
+                .map(Article::getCategoryId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+                
+        // 一次性查询所有需要的分类
+        Map<Long, String> categoryMap = new HashMap<>();
+        if (!categoryIds.isEmpty()) {
+            categoryMap = categoryRepository.selectByIds(categoryIds).stream()
+                    .collect(Collectors.toMap(Category::getId, Category::getName));
+        }
+
+        // 使用缓存的分类信息转换文章
+        Map<Long, String> finalCategoryMap = categoryMap;
         return new PageInfo<>(articles.stream()
-                .map(this::convertToDetailResponse)
+                .map(article -> convertToDetailResponse(article, finalCategoryMap))
                 .collect(Collectors.toList()));
     }
-    
+
+    @Override
+    public PageInfo<ArticleDetailResponse> getList(int pageNum, int pageSize, Long categoryId, 
+            Long tagId, String keyword, String sortField, String sortDirection) {
+        PageHelper.startPage(pageNum, pageSize);
+        List<Article> articles = articleRepository.selectListWithParams(
+                categoryId, 
+                tagId, 
+                keyword, 
+                sortField, 
+                "desc".equalsIgnoreCase(sortDirection)
+        );
+        
+        // 批量获取分类信息
+        Map<Long, String> categoryMap = getCategoryMapForArticles(articles);
+        
+        return new PageInfo<>(articles.stream()
+                .map(article -> convertToDetailResponse(article, categoryMap))
+                .collect(Collectors.toList()));
+    }
+
+    @Override
+    public List<ArticleDetailResponse> getHotArticles(int limit) {
+        // 获取浏览量最高的文章
+        List<Article> hotArticles = articleRepository.selectHotArticles(limit);
+        
+        // 批量获取分类信息
+        Map<Long, String> categoryMap = getCategoryMapForArticles(hotArticles);
+        
+        return hotArticles.stream()
+                .map(article -> convertToDetailResponse(article, categoryMap))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ArticleDetailResponse> getRecommendedArticles(Long articleId, int limit) {
+        // 1. 获取当前文章的分类和标签
+        Article currentArticle = articleRepository.selectById(articleId);
+        if (currentArticle == null) {
+            Asserts.fail("文章不存在");
+        }
+        
+        // 2. 获取相同分类或标签的文章
+        List<Article> recommendedArticles = articleRepository.selectRecommendedArticles(
+                articleId,
+                currentArticle.getCategoryId(),
+                getArticleTags(articleId).stream()
+                        .map(TagResponse::getId)
+                        .collect(Collectors.toList()),
+                limit
+        );
+        
+        // 3. 批量获取分类信息
+        Map<Long, String> categoryMap = getCategoryMapForArticles(recommendedArticles);
+        
+        return recommendedArticles.stream()
+                .map(article -> convertToDetailResponse(article, categoryMap))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public PageInfo<ArticleDetailResponse> getUserArticles(Long userId, int pageNum, int pageSize) {
+        // 验证用户是否存在
+        User user = userRepository.selectById(userId);
+        if (user == null) {
+            Asserts.fail("用户不存在");
+        }
+        
+        // 分页查询用户的文章
+        PageHelper.startPage(pageNum, pageSize);
+        List<Article> articles = articleRepository.selectByAuthorId(userId);
+        
+        // 批量获取分类信息
+        Map<Long, String> categoryMap = getCategoryMapForArticles(articles);
+        
+        return new PageInfo<>(articles.stream()
+                .map(article -> convertToDetailResponse(article, categoryMap))
+                .collect(Collectors.toList()));
+    }
+
+    // ========== 状态操作方法 ==========
     @Override
     @Transactional
     public void updateStatus(Long id, String status) {
@@ -195,8 +303,19 @@ public class ArticleServiceImpl implements ArticleService {
     public void incrementViewCount(Long id) {
         articleRepository.updateViewCount(id);
     }
-    
-    private ArticleDetailResponse convertToDetailResponse(Article article) {
+
+    @Override
+    public boolean isArticleAuthor(Long articleId) {
+        Article article = articleRepository.selectById(articleId);
+        if (article == null) {
+            return false;
+        }
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        return currentUserId != null && currentUserId.equals(article.getAuthorId());
+    }
+
+    // ========== 私有辅助方法 ==========
+    private ArticleDetailResponse convertToDetailResponse(Article article, Map<Long, String> categoryMap) {
         return ArticleDetailResponse.builder()
                 .id(article.getId())
                 .title(article.getTitle())
@@ -205,7 +324,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .authorId(article.getAuthorId())
                 .authorName(getUserName(article.getAuthorId()))
                 .categoryId(article.getCategoryId())
-                .categoryName(getCategoryName(article.getCategoryId()))
+                .categoryName(getCategoryName(article.getCategoryId(), categoryMap))
                 .status(article.getStatus())
                 .viewCount(article.getViewCount())
                 .isTop(article.getIsTop())
@@ -215,14 +334,13 @@ public class ArticleServiceImpl implements ArticleService {
                 .build();
     }
     
+    private String getCategoryName(Long categoryId, Map<Long, String> categoryMap) {
+        return categoryId != null ? categoryMap.get(categoryId) : null;
+    }
+    
     private String getUserName(Long userId) {
         User user = userRepository.selectById(userId);
         return user != null ? user.getUsername() : null;
-    }
-    
-    private String getCategoryName(Long categoryId) {
-        // TODO: 实现分类查询
-        return null;
     }
     
     private List<TagResponse> getArticleTags(Long articleId) {
@@ -242,12 +360,24 @@ public class ArticleServiceImpl implements ArticleService {
      * @param tagIds 标签ID列表
      */
     private void updateArticleTags(Long articleId, List<Long> tagIds) {
-        // 1. 删除原有的标签关联
         articleRepository.deleteArticleTags(articleId);
-        
-        // 2. 如果有新的标签，添加新的关联
         if (tagIds != null && !tagIds.isEmpty()) {
             articleRepository.insertArticleTags(articleId, tagIds);
         }
+    }
+
+    private Map<Long, String> getCategoryMapForArticles(List<Article> articles) {
+        List<Long> categoryIds = articles.stream()
+                .map(Article::getCategoryId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+                
+        if (categoryIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        return categoryRepository.selectByIds(categoryIds).stream()
+                .collect(Collectors.toMap(Category::getId, Category::getName));
     }
 } 

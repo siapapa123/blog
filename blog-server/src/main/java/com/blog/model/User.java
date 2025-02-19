@@ -1,6 +1,9 @@
 package com.blog.model;
 
 import lombok.Data;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
@@ -8,6 +11,9 @@ import java.time.LocalDateTime;
  * 对应数据库表：users
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class User {
     /**
      * 用户ID
@@ -30,9 +36,19 @@ public class User {
     private String email;
 
     /**
+     * 头像URL
+     */
+    private String avatarUrl;
+
+    /**
      * 用户角色
      */
     private UserRole role;
+
+    /**
+     * 是否删除
+     */
+    private Boolean isDeleted;
 
     /**
      * 创建时间

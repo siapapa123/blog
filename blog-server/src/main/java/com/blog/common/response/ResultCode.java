@@ -18,7 +18,16 @@ public enum ResultCode {
     
     // 文章相关错误
     ARTICLE_NOT_FOUND(2001, "文章不存在"),
-    NO_PERMISSION(2002, "没有操作权限");
+    NO_PERMISSION(2002, "没有操作权限"),
+    
+    /* 标签相关错误 */
+    TAG_NOT_FOUND(4001, "标签不存在"),
+    TAG_ALREADY_EXISTS(4002, "标签已存在"),
+    
+    // 评论相关错误
+    COMMENT_NOT_FOUND(3001, "评论不存在"),
+    COMMENT_CONTENT_EMPTY(3002, "评论内容不能为空"),
+    COMMENT_CONTENT_TOO_LONG(3003, "评论内容不能超过500个字符");
 
     private final int code;
     private final String message;

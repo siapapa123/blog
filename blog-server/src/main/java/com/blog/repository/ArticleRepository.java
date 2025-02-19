@@ -2,9 +2,11 @@ package com.blog.repository;
 
 import com.blog.model.Article;
 import com.blog.dto.response.TagResponse;
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
+@Mapper
 public interface ArticleRepository {
     int insert(Article article);
     
@@ -39,4 +41,23 @@ public interface ArticleRepository {
      * @return 影响行数
      */
     int insertArticleTags(@Param("articleId") Long articleId, @Param("tagIds") List<Long> tagIds);
+
+    List<Article> selectHotArticles(@Param("limit") int limit);
+    
+    List<Article> selectRecommendedArticles(
+            @Param("articleId") Long articleId,
+            @Param("categoryId") Long categoryId,
+            @Param("tagIds") List<Long> tagIds,
+            @Param("limit") int limit
+    );
+    
+    List<Article> selectByAuthorId(@Param("authorId") Long authorId);
+    
+    List<Article> selectListWithParams(
+            @Param("categoryId") Long categoryId,
+            @Param("tagId") Long tagId,
+            @Param("keyword") String keyword,
+            @Param("sortField") String sortField,
+            @Param("isDesc") boolean isDesc
+    );
 } 

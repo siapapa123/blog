@@ -6,62 +6,90 @@
         <result column="username" jdbcType="VARCHAR" property="username" />
         <result column="password" jdbcType="VARCHAR" property="password" />
         <result column="email" jdbcType="VARCHAR" property="email" />
+        <result column="avatar_url" jdbcType="VARCHAR" property="avatarUrl" />
         <result column="role" jdbcType="VARCHAR" property="role" />
+        <result column="is_deleted" jdbcType="BOOLEAN" property="isDeleted" />
         <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
         <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, username, password, email, role, create_time, update_time
+        id, username, password, email, avatar_url, role,
+        is_deleted, create_time, update_time
     </sql>
 
     <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
         select 
         <include refid="Base_Column_List" />
         from users
-        where id = #{id}
+        where id = #{id} and is_deleted = false
     </select>
 
     <select id="selectByUsername" parameterType="java.lang.String" resultMap="BaseResultMap">
         select 
         <include refid="Base_Column_List" />
         from users
-        where username = #{username,jdbcType=VARCHAR}
+        where username = #{username} and is_deleted = false
     </select>
 
-    <select id="existsByUsername" resultType="java.lang.Integer">
-        select count(1)
+    <select id="selectByEmail" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select 
+        <include refid="Base_Column_List" />
         from users
-        where username = #{username,jdbcType=VARCHAR}
-    </select>
-
-    <select id="existsByEmail" resultType="java.lang.Integer">
-        select count(1)
-        from users
-        where email = #{email,jdbcType=VARCHAR}
+        where email = #{email} and is_deleted = false
     </select>
 
     <insert id="insert" parameterType="com.blog.model.User" useGeneratedKeys="true" keyProperty="id">
         insert into users (username, password, email, 
-            role, create_time, update_time)
-        values (#{username,jdbcType=VARCHAR}, #{password,jdbcType=VARCHAR}, #{email,jdbcType=VARCHAR}, 
-            #{role,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
+            avatar_url, role, is_deleted, 
+            create_time, update_time)
+        values (#{username}, #{password}, #{email}, 
+            #{avatarUrl}, #{role}, #{isDeleted},
+            #{createTime}, #{updateTime})
     </insert>
 
-    <update id="updateById" parameterType="com.blog.model.User">
+    <update id="update" parameterType="com.blog.model.User">
         update users
         <set>
             <if test="username != null">username = #{username},</if>
             <if test="password != null">password = #{password},</if>
             <if test="email != null">email = #{email},</if>
+            <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
             <if test="role != null">role = #{role},</if>
-            <if test="updateTime != null">update_time = #{updateTime},</if>
+            update_time = CURRENT_TIMESTAMP
         </set>
-        where id = #{id}
+        where id = #{id} and is_deleted = false
     </update>
 
-    <delete id="deleteById" parameterType="java.lang.Long">
-        delete from users
-        where id = #{id}
-    </delete>
+    <update id="deleteById">
+        update users
+        set is_deleted = true,
+            update_time = CURRENT_TIMESTAMP
+        where id = #{id} and is_deleted = false
+    </update>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        select 
+        <include refid="Base_Column_List" />
+        from users
+        where is_deleted = false
+        <if test="keyword != null and keyword != ''">
+            and (
+                username like concat('%', #{keyword}, '%')
+                or email like concat('%', #{keyword}, '%')
+            )
+        </if>
+        order by create_time desc
+    </select>
+
+    <select id="selectByIds" resultMap="BaseResultMap">
+        select 
+        <include refid="Base_Column_List" />
+        from users
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        and is_deleted = false
+    </select>
 </mapper> 

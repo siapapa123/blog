@@ -112,4 +112,69 @@
             (#{articleId}, #{tagId})
         </foreach>
     </insert>
+
+    <!-- 获取热门文章 -->
+    <select id="selectHotArticles" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List" />
+        from articles 
+        where is_deleted = false and status = 'PUBLISHED'
+        order by view_count desc, create_time desc 
+        limit #{limit}
+    </select>
+
+    <!-- 获取推荐文章 -->
+    <select id="selectRecommendedArticles" resultMap="BaseResultMap">
+        select distinct a.<include refid="Base_Column_List" />
+        from articles a
+        left join article_tags at on a.id = at.article_id
+        where a.is_deleted = false 
+        and a.status = 'PUBLISHED'
+        and a.id != #{articleId}
+        and (
+            a.category_id = #{categoryId}
+            or at.tag_id in 
+            <foreach collection="tagIds" item="tagId" open="(" separator="," close=")">
+                #{tagId}
+            </foreach>
+        )
+        order by a.create_time desc
+        limit #{limit}
+    </select>
+
+    <!-- 获取用户的文章列表 -->
+    <select id="selectByAuthorId" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List" />
+        from articles 
+        where author_id = #{authorId} 
+        and is_deleted = false
+        order by create_time desc
+    </select>
+
+    <!-- 带参数的文章列表查询 -->
+    <select id="selectListWithParams" resultMap="BaseResultMap">
+        select distinct a.<include refid="Base_Column_List" />
+        from articles a
+        left join article_tags at on a.id = at.article_id
+        where a.is_deleted = false
+        <if test="categoryId != null">
+            and a.category_id = #{categoryId}
+        </if>
+        <if test="tagId != null">
+            and at.tag_id = #{tagId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            and (
+                a.title like concat('%', #{keyword}, '%')
+                or a.summary like concat('%', #{keyword}, '%')
+            )
+        </if>
+        order by 
+        <choose>
+            <when test="sortField == 'viewCount'">a.view_count</when>
+            <when test="sortField == 'createTime'">a.create_time</when>
+            <otherwise>a.create_time</otherwise>
+        </choose>
+        <if test="isDesc">desc</if>
+        <if test="!isDesc">asc</if>
+    </select>
 </mapper> 
