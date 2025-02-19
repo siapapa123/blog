@@ -27,7 +27,12 @@ public enum ResultCode {
     // 评论相关错误
     COMMENT_NOT_FOUND(3001, "评论不存在"),
     COMMENT_CONTENT_EMPTY(3002, "评论内容不能为空"),
-    COMMENT_CONTENT_TOO_LONG(3003, "评论内容不能超过500个字符");
+    COMMENT_CONTENT_TOO_LONG(3003, "评论内容不能超过500个字符"),
+    
+    /* 分类相关错误 */
+    CATEGORY_NOT_FOUND(5001, "分类不存在"),
+    CATEGORY_ALREADY_EXISTS(5002, "分类名称已存在"),
+    CATEGORY_HAS_ARTICLES(5003, "分类下存在文章，无法删除");
 
     private final int code;
     private final String message;
