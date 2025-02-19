@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.blog.repository.ArticleRepository">
+    <resultMap id="BaseResultMap" type="com.blog.model.Article">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="title" jdbcType="VARCHAR" property="title" />
+        <result column="content_url" jdbcType="VARCHAR" property="contentUrl" />
+        <result column="summary" jdbcType="VARCHAR" property="summary" />
+        <result column="cover_url" jdbcType="VARCHAR" property="coverUrl" />
+        <result column="author_id" jdbcType="BIGINT" property="authorId" />
+        <result column="category_id" jdbcType="BIGINT" property="categoryId" />
+        <result column="status" jdbcType="VARCHAR" property="status" />
+        <result column="view_count" jdbcType="INTEGER" property="viewCount" />
+        <result column="is_top" jdbcType="BOOLEAN" property="isTop" />
+        <result column="is_deleted" jdbcType="BOOLEAN" property="isDeleted" />
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+        <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, title, content_url, summary, cover_url, author_id, category_id, 
+        status, view_count, is_top, is_deleted, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.blog.model.Article" useGeneratedKeys="true" keyProperty="id">
+        insert into articles (title, content_url, summary, cover_url, 
+            author_id, category_id, status, view_count, is_top, is_deleted)
+        values (#{title}, #{contentUrl}, #{summary}, #{coverUrl}, 
+            #{authorId}, #{categoryId}, #{status}, #{viewCount}, #{isTop}, #{isDeleted})
+    </insert>
+
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List" />
+        from articles
+        where id = #{id} and is_deleted = false
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List" />
+        from articles
+        where is_deleted = false
+        <if test="categoryId != null">
+            and category_id = #{categoryId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            and (title like concat('%', #{keyword}, '%') 
+                 or summary like concat('%', #{keyword}, '%'))
+        </if>
+        order by is_top desc, create_time desc
+    </select>
+
+    <select id="selectArticleTags" resultType="com.blog.dto.response.TagResponse">
+        select t.id, t.name
+        from tags t
+        inner join article_tags at on t.id = at.tag_id
+        where at.article_id = #{articleId}
+    </select>
+
+    <update id="updateById" parameterType="com.blog.model.Article">
+        update articles
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="contentUrl != null">content_url = #{contentUrl},</if>
+            <if test="summary != null">summary = #{summary},</if>
+            <if test="coverUrl != null">cover_url = #{coverUrl},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="isTop != null">is_top = #{isTop},</if>
+            update_time = CURRENT_TIMESTAMP
+        </set>
+        where id = #{id} and is_deleted = false
+    </update>
+
+    <update id="updateViewCount">
+        update articles
+        set view_count = view_count + 1
+        where id = #{id} and is_deleted = false
+    </update>
+
+    <update id="updateTop">
+        update articles
+        set is_top = #{isTop},
+            update_time = CURRENT_TIMESTAMP
+        where id = #{id} and is_deleted = false
+    </update>
+
+    <update id="updateStatus">
+        update articles
+        set status = #{status},
+            update_time = CURRENT_TIMESTAMP
+        where id = #{id} and is_deleted = false
+    </update>
+
+    <update id="deleteById">
+        update articles
+        set is_deleted = true,
+            update_time = CURRENT_TIMESTAMP
+        where id = #{id} and is_deleted = false
+    </update>
+
+    <!-- 删除文章标签关联 -->
+    <delete id="deleteArticleTags">
+        delete from article_tags
+        where article_id = #{articleId}
+    </delete>
+
+    <!-- 批量插入文章标签关联 -->
+    <insert id="insertArticleTags">
+        insert into article_tags (article_id, tag_id)
+        values
+        <foreach collection="tagIds" item="tagId" separator=",">
+            (#{articleId}, #{tagId})
+        </foreach>
+    </insert>
+</mapper> 

@@ -4,15 +4,15 @@ import com.blog.model.User;
 import org.apache.ibatis.annotations.Param;
 
 public interface UserRepository {
-    User selectByPrimaryKey(Long id);
+    User selectById(Long id);
     
     User selectByUsername(String username);
     
     int insert(User user);
     
-    int updateByPrimaryKeySelective(User user);
+    int updateById(User user);
     
-    int deleteByPrimaryKey(Long id);
+    int deleteById(Long id);
     
     int existsByUsername(@Param("username") String username);
     

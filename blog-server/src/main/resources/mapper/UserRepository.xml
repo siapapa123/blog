@@ -15,11 +15,11 @@
         id, username, password, email, role, create_time, update_time
     </sql>
 
-    <select id="selectByPrimaryKey" parameterType="java.lang.Long" resultMap="BaseResultMap">
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
         select 
         <include refid="Base_Column_List" />
         from users
-        where id = #{id,jdbcType=BIGINT}
+        where id = #{id}
     </select>
 
     <select id="selectByUsername" parameterType="java.lang.String" resultMap="BaseResultMap">
@@ -48,30 +48,20 @@
             #{role,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
     </insert>
 
-    <update id="updateByPrimaryKeySelective" parameterType="com.blog.model.User">
+    <update id="updateById" parameterType="com.blog.model.User">
         update users
         <set>
-            <if test="username != null">
-                username = #{username,jdbcType=VARCHAR},
-            </if>
-            <if test="password != null">
-                password = #{password,jdbcType=VARCHAR},
-            </if>
-            <if test="email != null">
-                email = #{email,jdbcType=VARCHAR},
-            </if>
-            <if test="role != null">
-                role = #{role,jdbcType=VARCHAR},
-            </if>
-            <if test="updateTime != null">
-                update_time = #{updateTime,jdbcType=TIMESTAMP},
-            </if>
+            <if test="username != null">username = #{username},</if>
+            <if test="password != null">password = #{password},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
         </set>
-        where id = #{id,jdbcType=BIGINT}
+        where id = #{id}
     </update>
 
-    <delete id="deleteByPrimaryKey" parameterType="java.lang.Long">
+    <delete id="deleteById" parameterType="java.lang.Long">
         delete from users
-        where id = #{id,jdbcType=BIGINT}
+        where id = #{id}
     </delete>
 </mapper> 

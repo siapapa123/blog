@@ -15,8 +15,6 @@ spring:
       file-size-threshold: 2KB
       max-request-size: 15MB
 
-# 恢复springboot版本为2.7.0
-
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
@@ -47,3 +45,9 @@ springdoc:
     enabled: true
     disable-swagger-default-url: true
   packages-to-scan: com.blog.controller 
+
+minio:
+  endpoint: http://minio:9000
+  accessKey: minioadmin
+  secretKey: minioadmin
+  bucketName: blog-content 
