@@ -48,10 +48,22 @@ services:
     networks:
       - blog-network
 
+  redis:
+    image: redis:6.2
+    container_name: blog-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - blog-network
+
 networks:
   blog-network:
     driver: bridge
 
 volumes:
   mysql-data:
-  minio_data: 
+  minio_data:
+  redis_data: 

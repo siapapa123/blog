@@ -25,6 +25,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CachePut;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,6 +36,7 @@ import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
+@CacheConfig(cacheNames = "user")
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -68,6 +72,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @CachePut(key = "#result.user.id")
     public TokenResponse login(LoginRequest request) {
         // 1. 根据用户名查找用户
         User user = userRepository.selectByUsername(request.getUsername());
@@ -76,18 +81,20 @@ public class UserServiceImpl implements UserService {
         }
 
         // 2. 验证密码
-        if (!request.getPassword().equals(user.getPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             Asserts.fail(ResultCode.FAILED);
         }
 
         // 3. 生成token
         String token = jwtTokenUtil.generateToken(user.getUsername());
 
-        // 4. 构建并返回响应
-        return TokenResponse.builder()
+        // 4. 构建响应（用户信息会被缓存）
+        TokenResponse response = TokenResponse.builder()
                 .token(token)
                 .user(convertToVO(user))
                 .build();
+
+        return response;
     }
 
     @Override
@@ -99,6 +106,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Cacheable(key = "#id")
     public UserResponse getById(Long id) {
         User user = userRepository.selectById(id);
         if (user == null || user.getIsDeleted()) {
@@ -108,6 +116,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @CachePut(key = "#id")
     @Transactional
     public UserResponse update(Long id, UserUpdateRequest request) {
         // 1. 检查用户是否存在
